@@ -1,0 +1,85 @@
+name: Deploy Strapi
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Docker login
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/strapi-a3 \
+            --build-arg APP_KEYS="${{ vars.APP_KEYS }}" \
+            --build-arg API_TOKEN_SALT="${{ vars.API_TOKEN_SALT }}" \
+            --build-arg ADMIN_JWT_SECRET="${{ vars.ADMIN_JWT_SECRET }}" \
+            --build-arg JWT_SECRET="${{ vars.JWT_SECRET }}" \
+            --build-arg DATABASE_FILENAME="${{ vars.DATABASE_FILENAME }}" .
+
+          docker push ${{ secrets.DOCKER_USERNAME }}/strapi-a3
+
+      - name: Criar volume temporário
+        run: mkdir -p ./volumes/tmp
+
+      - name: Rodar container local com variáveis e volume
+        run: |
+          docker run -d -p 1337:1337 \
+            --name strapi-container \
+            -e HOST=0.0.0.0 \
+            -e PORT=1337 \
+            -e APP_KEYS="${{ vars.APP_KEYS }}" \
+            -e API_TOKEN_SALT="${{ vars.API_TOKEN_SALT }}" \
+            -e ADMIN_JWT_SECRET="${{ vars.ADMIN_JWT_SECRET }}" \
+            -e JWT_SECRET="${{ vars.JWT_SECRET }}" \
+            -e DATABASE_CLIENT=sqlite \
+            -e DATABASE_FILENAME=.tmp/data.db \
+            -v ${{ github.workspace }}/volumes/tmp:/app/.tmp \
+            ${{ secrets.DOCKER_USERNAME }}/strapi-a3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Gerar arquivo terraform.tfvars
+        run: |
+          cat <<EOF > terraform/terraform.tfvars
+          image_url           = "${{ secrets.DOCKER_USERNAME }}/strapi-a3"
+          execution_role_arn  = "${{ secrets.ECS_EXECUTION_ROLE }}"
+          task_role_arn       = "${{ secrets.ECS_TASK_ROLE }}"
+          subnet_ids          = [${{ secrets.SUBNET_IDS }}]
+          security_group_id   = "${{ secrets.SECURITY_GROUP_ID }}"
+          EOF
+
+      - name: Terraform Init
+        run: terraform -chdir=terraform init     
+
+      - name: Import ECS Service if not imported
+        run: |
+          cd terraform
+          terraform state list aws_ecs_service.strapi || terraform import aws_ecs_service.strapi strapi-cluster/strapi-service
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform -chdir=terraform plan -detailed-exitcode
+        continue-on-error: true
+
+      - name: Terraform Apply
+        if: steps.plan.outcome == 'success' && steps.plan.conclusion == 'success'
+        run: terraform -chdir=terraform apply -auto-approve

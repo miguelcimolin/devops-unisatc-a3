@@ -1,0 +1,58 @@
+name: Pull Request Tests
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Definir variáveis de ambiente
+        run: |
+          echo "APP_KEYS=${{ secrets.APP_KEYS }}" >> .env
+          echo "API_TOKEN_SALT=${{ secrets.API_TOKEN_SALT }}" >> .env
+          echo "ADMIN_JWT_SECRET=${{ secrets.ADMIN_JWT_SECRET }}" >> .env
+          echo "TRANSFER_TOKEN_SALT=${{ secrets.TRANSFER_TOKEN_SALT }}" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "DATABASE_FILENAME=${{ secrets.DATABASE_FILENAME }}" >> .env
+
+      - name: Build Strapi
+        run: pnpm build
+
+      - name: Start Strapi
+        env:
+          HOST: 0.0.0.0
+          PORT: 1337
+        run: |
+          pnpm develop &
+          n=0
+          until curl --fail http://localhost:1337; do
+            n=$((n+1))
+            if [ $n -ge 60 ]; then
+              echo "Strapi não iniciou no tempo esperado" && exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: Run Playwright Tests
+        run: pnpm exec playwright test
