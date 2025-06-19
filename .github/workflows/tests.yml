@@ -46,7 +46,7 @@ jobs:
           until curl --fail http://localhost:1337; do
             n=$((n+1))
             if [ $n -ge 60 ]; then
-              echo "Strapi não iniciou no tempo esperado" && exit 1
+              echo "Strapi nao iniciou no tempo esperado" && exit 1
             fi
             sleep 5
           done
