@@ -69,10 +69,10 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir=terraform init     
 
-      - name: Import ECS Service if not imported
-        run: |
-          cd terraform
-          terraform state list aws_ecs_service.strapi || terraform import aws_ecs_service.strapi strapi-cluster/strapi-service
+      #- name: Import ECS Service if not imported
+      #  run: |
+      #    cd terraform
+      #    terraform state list aws_ecs_service.strapi || terraform import aws_ecs_service.strapi strapi-cluster/strapi-service
 
       - name: Terraform Plan
         id: plan
