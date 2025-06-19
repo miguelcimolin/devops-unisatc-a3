@@ -10,20 +10,28 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # 1) Checkout do código
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2) Node.js + cache
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: pnpm                # aproveita o cache integrado
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      # 3) Instala e configura o pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8                 # fixe na mesma versão que usa localmente
 
+      # 4) Instala as dependências (sem frozen-lockfile)
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
+      # 5) Definição das variáveis de ambiente
       - name: Definir variáveis de ambiente
         run: |
           echo "APP_KEYS=${{ secrets.APP_KEYS }}" >> .env
@@ -33,9 +41,11 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           echo "DATABASE_FILENAME=${{ secrets.DATABASE_FILENAME }}" >> .env
 
+      # 6) Build do Strapi
       - name: Build Strapi
         run: pnpm build
 
+      # 7) Start Strapi em background e aguarda ficar pronto
       - name: Start Strapi
         env:
           HOST: 0.0.0.0
@@ -46,13 +56,15 @@ jobs:
           until curl --fail http://localhost:1337; do
             n=$((n+1))
             if [ $n -ge 60 ]; then
-              echo "Strapi nao iniciou no tempo esperado" && exit 1
+              echo "Strapi não iniciou no tempo esperado" && exit 1
             fi
             sleep 5
           done
 
+      # 8) Instala navegadores Playwright
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
 
+      # 9) Executa os testes E2E
       - name: Run Playwright Tests
         run: pnpm exec playwright test
