@@ -69,17 +69,23 @@ jobs:
       - name: Terraform Init
         run: terraform -chdir=terraform init     
 
-      - name: Import ECS Service if not imported
-        run: |
-          cd terraform
-          terraform state list aws_ecs_service.strapi || terraform import aws_ecs_service.strapi strapi-cluster/strapi-service
+- name: Import ECS Service if not imported
+  working-directory: terraform
+  run: |
+    if aws ecs describe-services --cluster strapi-cluster \
+         --services strapi-service --region us-east-1 --query "failures" \
+         --output text | grep -q '<none>'; then
+      terraform state list aws_ecs_service.strapi >/dev/null 2>&1 || \
+        terraform import aws_ecs_service.strapi strapi-cluster/strapi-service
+    else
+      echo "ECS service ainda não existe; import ignorado."
+    fi
 
-      - name: Terraform Plan
-        id: plan
-        run: |
-          terraform -chdir=terraform plan -detailed-exitcode
-        continue-on-error: true
+- name: Terraform Plan
+  working-directory: terraform
+  run: terraform plan -out=tfplan -input=false
 
-      - name: Terraform Apply
-        if: steps.plan.outcome == 'success' && steps.plan.conclusion == 'success'
-        run: terraform -chdir=terraform apply -auto-approve
+- name: Terraform Apply
+  if: github.ref == 'refs/heads/master'
+  working-directory: terraform
+  run: terraform apply -input=false -auto-approve tfplan
