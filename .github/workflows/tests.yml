@@ -26,12 +26,12 @@ jobs:
 
       - name: Definir variáveis de ambiente
         run: |
-          echo "APP_KEYS=${{ secrets.APP_KEYS }}" >> .env
-          echo "API_TOKEN_SALT=${{ secrets.API_TOKEN_SALT }}" >> .env
-          echo "ADMIN_JWT_SECRET=${{ secrets.ADMIN_JWT_SECRET }}" >> .env
-          echo "TRANSFER_TOKEN_SALT=${{ secrets.TRANSFER_TOKEN_SALT }}" >> .env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-          echo "DATABASE_FILENAME=${{ secrets.DATABASE_FILENAME }}" >> .env
+          echo "APP_KEYS=${{ vars.APP_KEYS }}" >> .env
+          echo "API_TOKEN_SALT=${{ vars.API_TOKEN_SALT }}" >> .env
+          echo "ADMIN_JWT_SECRET=${{ vars.ADMIN_JWT_SECRET }}" >> .env
+          echo "TRANSFER_TOKEN_SALT=${{ vars.TRANSFER_TOKEN_SALT }}" >> .env
+          echo "JWT_SECRET=${{ vars.JWT_SECRET }}" >> .env
+          echo "DATABASE_FILENAME=${{ vars.DATABASE_FILENAME }}" >> .env
 
       - name: Build Strapi
         run: pnpm build
@@ -46,7 +46,7 @@ jobs:
           until curl --fail http://localhost:1337; do
             n=$((n+1))
             if [ $n -ge 60 ]; then
-              echo "Strapi não iniciou no tempo esperado" && exit 1
+              echo "Strapi nao iniciou no tempo esperado" && exit 1
             fi
             sleep 5
           done
