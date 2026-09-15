@@ -1,34 +1,37 @@
-# Etapa 1: build da aplicação
+# ---- Build stage ----
 FROM node:20 AS builder
 
-# Define diretório de trabalho
 WORKDIR /app
 
-# Copia arquivos de dependência
-COPY package*.json ./
+# Ativa suporte ao pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Instala todas as dependências (incluindo dev)
-RUN npm install
+# Copia manifestos primeiro para otimizar cache
+COPY pnpm-lock.yaml package.json ./
 
-# Copia o restante dos arquivos do projeto
+# Instala dependências completas (dev + prod)
+RUN pnpm install --frozen-lockfile
+
+# Copia o restante do código
 COPY . .
 
-# Compila a aplicação (Strapi build, por exemplo)
-RUN npm run build
+# Compila a aplicação Strapi (admin build)
+RUN pnpm build
 
-# Etapa 2: imagem final de produção
+# ---- Runtime stage ----
 FROM node:20-slim
 
 WORKDIR /app
 
-# Copia arquivos da etapa de build
+# Habilita pnpm também na imagem final
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Copia artefatos compilados e node_modules do estágio builder
 COPY --from=builder /app ./
 
 # Instala apenas dependências de produção
-RUN npm ci --omit=dev
+RUN pnpm install --prod --frozen-lockfile
 
-# Expõe a porta da aplicação
 EXPOSE 1337
 
-# Comando para iniciar o Strapi
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "start"]

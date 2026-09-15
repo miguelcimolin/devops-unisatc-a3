@@ -441,7 +441,7 @@ export interface ApiArticleArticle extends Struct.CollectionTypeSchema {
 export interface ApiAuthorAuthor extends Struct.CollectionTypeSchema {
   collectionName: 'authors';
   info: {
-    description: 'Crie autores para seu conte\u00FAdo';
+    description: 'testee2';
     displayName: 'Autor';
     pluralName: 'authors';
     singularName: 'author';
